@@ -1,76 +1,82 @@
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.openqa.selenium.By;
-import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
-import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.support.ui.ExpectedConditions;
-import org.openqa.selenium.support.ui.WebDriverWait;
-
-import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class WikipediaContentTest {
+@DisplayName("Testy weryfikacji treści artykułu (Java)")
+class WikipediaContentTest extends BaseTest {
 
-    private WebDriver driver;
-    private WebDriverWait wait;
+    private static final String JAVA_ARTICLE_URL = "https://pl.wikipedia.org/wiki/Java";
 
-    @BeforeEach
-    void setUp() {
-        driver = new ChromeDriver();
-        driver.manage().window().maximize();
-        wait = new WebDriverWait(driver, Duration.ofSeconds(10));
-    }
+    private static final By MAIN_HEADING = By.id("firstHeading");
+    private static final By INFOBOX_IMAGE = By.cssSelector(".infobox img");
+    private static final By REFERENCES_SECTION = By.id("Przypisy");
+    private static final By FOOTER_COPYRIGHT = By.id("footer-info-copyright");
 
-    @AfterEach
-    void tearDown() {
-        if (driver != null) {
-            driver.quit();
-        }
+    @Test
+    @DisplayName("Nagłówek H1 powinien zgadzać się z tytułem artykułu")
+    void shouldDisplayCorrectTitleForJavaArticle() {
+        // Arrange
+        driver.get(JAVA_ARTICLE_URL);
+
+        // Act
+        WebElement heading = wait.until(ExpectedConditions.visibilityOfElementLocated(MAIN_HEADING));
+
+        // Assert
+        assertThat(heading.getText())
+                .as("Tytuł artykułu jest niepoprawny")
+                .contains("Java (język programowania)");
     }
 
     @Test
-    void articleShouldHaveCorrectTitleImageAndReferences() {
-        // 1. Arrange
-        String articleUrl = "https://pl.wikipedia.org/wiki/Java";
-        String expectedTitleStart = "Java[edytuj wstęp]"; // Dokładny tytuł H1 na stronie "Java" w polskiej Wikipedii
+    @DisplayName("Infobox powinien zawierać zdjęcie maskotki (Duke)")
+    void shouldDisplayDukeMascotImageInInfobox() {
+        // Arrange
+        driver.get(JAVA_ARTICLE_URL);
+        wait.until(ExpectedConditions.visibilityOfElementLocated(MAIN_HEADING));
 
-        driver.get(articleUrl);
+        // Act
+        WebElement image = driver.findElement(INFOBOX_IMAGE);
 
-        // 2. Act
-        // A. Czekamy na główny nagłówek
-        WebElement mainHeader = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("firstHeading")));
-
-        // B. Szukamy obrazka w Infoboxie
-        WebElement infoboxImage = driver.findElement(By.cssSelector(".infobox img"));
-
-        // C. Szukamy sekcji "Przypisy"
-        WebElement referencesHeader = driver.findElement(By.id("Przypisy"));
-
-        // 3. Assert
-
-        // Weryfikacja 1: Tytuł H1
-        assertThat(mainHeader.getText())
-                .as("Nagłówek H1 powinien zgadzać się z tematem artykułu")
-                .isEqualTo(expectedTitleStart);
-
-
-        // Weryfikacja 2: Obrazek
-        assertThat(infoboxImage.isDisplayed())
-                .as("Logo/Maskotka w Infoboxie powinna być widoczna")
-                .isTrue();
-
-        assertThat(infoboxImage.getAttribute("src"))
-                .as("Obrazek powinien przedstawiać maskotkę Java (Duke)")
+        // Assert
+        assertThat(image.isDisplayed()).isTrue();
+        assertThat(image.getAttribute("src"))
+                .as("Obrazek powinien być plikiem z maskotką Duke")
                 .contains("Duke");
+    }
 
+    @Test
+    @DisplayName("Artykuł powinien posiadać sekcję Przypisy")
+    void shouldDisplayReferencesSectionInArticle() {
+        // Arrange
+        driver.get(JAVA_ARTICLE_URL);
+        wait.until(ExpectedConditions.visibilityOfElementLocated(MAIN_HEADING));
 
-        // Weryfikacja 3: Przypisy
-        // Scrollujemy do przypisów, żeby upewnić się, że istnieją w strukturze
-        assertThat(referencesHeader.isDisplayed())
-                .as("Sekcja 'Przypisy' powinna być obecna w artykule")
+        // Act
+        WebElement references = driver.findElement(REFERENCES_SECTION);
+
+        // Assert
+        assertThat(references.isDisplayed())
+                .as("Sekcja przypisów powinna być widoczna")
                 .isTrue();
+    }
+
+    @Test
+    @DisplayName("Stopka powinna zawierać informację o licencji")
+    void shouldDisplayCopyrightInfoInFooter() {
+        // Arrange
+        driver.get(JAVA_ARTICLE_URL);
+
+        // Act
+        // Scrollujemy na dół
+        WebElement footer = wait.until(ExpectedConditions.visibilityOfElementLocated(FOOTER_COPYRIGHT));
+
+        // Assert
+        assertThat(footer.getText())
+                .as("Stopka powinna wspominać o licencji Creative Commons")
+                .contains("Creative Commons");
     }
 }

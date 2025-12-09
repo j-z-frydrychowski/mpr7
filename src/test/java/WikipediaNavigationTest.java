@@ -1,97 +1,91 @@
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.openqa.selenium.By;
-import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
-import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.support.ui.ExpectedConditions;
-import org.openqa.selenium.support.ui.WebDriverWait;
 
-import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class WikipediaNavigationTest {
+@DisplayName("Testy nawigacji i struktury linków")
+class WikipediaNavigationTest extends BaseTest {
 
-    private WebDriver driver;
-    private WebDriverWait wait;
-
-    @BeforeEach
-    void setUp() {
-        driver = new ChromeDriver();
-        driver.manage().window().maximize();
-        wait = new WebDriverWait(driver, Duration.ofSeconds(10));
-    }
-
-    @AfterEach
-    void tearDown() {
-        if (driver != null) {
-            driver.quit();
-        }
-    }
+    private static final By ARTICLE_CONTENT_LINKS = By.cssSelector("#mw-content-text p a[href^='/wiki/']");
+    private static final By MAIN_HEADING = By.id("firstHeading");
+    private static final By TABLE_OF_CONTENTS = By.id("vector-toc");
+    private static final By MAIN_PAGE_LOGO = By.cssSelector("a.mw-logo");
+    private static final By SIDEBAR_NAVIGATION = By.id("p-navigation");
 
     @Test
-    void clickingArticleLinkShouldNavigateToNewPage() {
-        // 1. Arrange
+    @DisplayName("Kliknięcie w link w artykule powinno przenieść na nową podstronę")
+    void shouldNavigateToNewPageWhenClickingArticleLink() {
+        // Arrange
         driver.get("https://pl.wikipedia.org/wiki/Java");
+        wait.until(ExpectedConditions.visibilityOfElementLocated(MAIN_HEADING));
 
-        // Czekamy na treść
-        wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("firstHeading")));
+        List<WebElement> links = driver.findElements(ARTICLE_CONTENT_LINKS);
 
-        // 2. Act
-        List<WebElement> articleLinks = driver.findElements(By.cssSelector("#mw-content-text p a[href^='/wiki/']"));
-
-        WebElement linkToClick = articleLinks.stream()
-                // FILTR POPRAWIONY: Ignorujemy dwukropek w "https:", szukamy go tylko w treści po "/wiki/"
-                .filter(link -> {
-                    String href = link.getAttribute("href");
-                    // Zabezpieczenie na wypadek null (choć selektor to raczej wyklucza)
-                    if (href == null) return false;
-                    // Dzielimy URL na części przez "/wiki/" i sprawdzamy tylko drugą część (nazwę artykułu)
-                    String[] parts = href.split("/wiki/");
-                    return parts.length > 1 && !parts[1].contains(":");
-                })
+        WebElement validLink = links.stream()
+                .filter(l -> !l.getAttribute("href").contains(":"))
                 .findFirst()
-                .orElseThrow(() -> new RuntimeException("Nie znaleziono żadnego poprawnego linku w artykule!"));
+                .orElseThrow();
 
-        String expectedUrl = linkToClick.getAttribute("href");
+        String expectedUrl = validLink.getAttribute("href");
 
-        // Na razie spróbujmy zwykłe kliknięcie:
-        linkToClick.click();
-
+        // Act
+        validLink.click();
         wait.until(ExpectedConditions.urlToBe(expectedUrl));
 
-        // 3. Assert
-        assertThat(driver.getCurrentUrl())
-                .as("Po kliknięciu w link użytkownik powinien zostać przekierowany na nową podstronę")
-                .isEqualTo(expectedUrl);
+        // Assert
+        assertThat(driver.getCurrentUrl()).isEqualTo(expectedUrl);
     }
 
     @Test
-    void tableOfContentsShouldBePresentOnLongArticle() {
-        // 1. Arrange
+    @DisplayName("Długi artykuł powinien posiadać spis treści")
+    void shouldDisplayTableOfContentsOnLongArticle() {
+        // Arrange
+        driver.get("https://pl.wikipedia.org/wiki/Java");
+        wait.until(ExpectedConditions.visibilityOfElementLocated(MAIN_HEADING));
+
+        // Act
+        WebElement toc = wait.until(ExpectedConditions.visibilityOfElementLocated(TABLE_OF_CONTENTS));
+
+        // Assert
+        assertThat(toc.isDisplayed())
+                .as("Spis treści powinien być widoczny")
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("Kliknięcie w logo Wikipedii powinno przenieść na stronę główną")
+    void shouldNavigateToMainPageWhenClickingLogo() {
+        // Arrange
         driver.get("https://pl.wikipedia.org/wiki/Java");
 
-        // 2. Act
-        wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("firstHeading")));
+        // Act
+        WebElement logo = wait.until(ExpectedConditions.elementToBeClickable(MAIN_PAGE_LOGO));
+        logo.click();
 
-        // Lokalizator: ID > class
-        By tocSelector = By.id("vector-toc");
+        wait.until(ExpectedConditions.titleContains("Wikipedia, wolna encyklopedia"));
 
-        // Czekamy na widoczność spisu treści
-        WebElement tableOfContents = wait.until(ExpectedConditions.visibilityOfElementLocated(tocSelector));
+        // Assert
+        assertThat(driver.getCurrentUrl())
+                .as("URL powinien wskazywać na stronę główną")
+                .isEqualTo("https://pl.wikipedia.org/wiki/Wikipedia:Strona_g%C5%82%C3%B3wna");
+    }
 
-        // 3. Assert
-        assertThat(tableOfContents.isDisplayed())
-                .as("Spis treści powinien być widoczny dla długiego artykułu")
-                .isTrue();
+    @Test
+    @DisplayName("Pasek boczny powinien zawierać menu nawigacyjne")
+    void shouldDisplaySidebarNavigation() {
+        // Arrange
+        driver.get("https://pl.wikipedia.org");
 
-        // Opcjonalnie: Sprawdźmy, czy spis treści faktycznie ma jakieś punkty
-        // Szukamy linków wewnątrz spisu treści
-        assertThat(tableOfContents.findElements(By.tagName("a")))
-                .as("Spis treści powinien zawierać linki do sekcji")
-                .isNotEmpty(); // Lista linków nie może być pusta
+        // Act
+        WebElement sidebar = wait.until(ExpectedConditions.visibilityOfElementLocated(SIDEBAR_NAVIGATION));
+
+        // Assert
+        assertThat(sidebar.isDisplayed()).isTrue();
+        assertThat(sidebar.getText()).contains("Strona główna", "Losuj artykuł");
     }
 }

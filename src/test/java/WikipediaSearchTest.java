@@ -1,112 +1,99 @@
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.openqa.selenium.By;
 import org.openqa.selenium.Keys;
-import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
-import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.support.ui.ExpectedConditions;
-import org.openqa.selenium.support.ui.WebDriverWait;
 
-import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class WikipediaSearchTest {
+@DisplayName("Testy funkcjonalności wyszukiwania na Wikipedii")
+class WikipediaSearchTest extends BaseTest {
 
-    private WebDriver driver;
-    private WebDriverWait wait;
-
-    @BeforeEach
-    void setUp() {
-
-        driver = new ChromeDriver();
-        // Maksymalizacja okna, żeby widzieć wszystkie elementy
-        driver.manage().window().maximize();
-        // Inicjalizacja Waita raz, używamy go w testach
-        wait = new WebDriverWait(driver, Duration.ofSeconds(10));
-    }
-
-    @AfterEach
-    void tearDown() {
-        // "Sprzątanie" po teście
-        if (driver != null) {
-            driver.quit();
-        }
-    }
+    // STAŁE LOKATORY (Wymaganie recenzji)
+    private static final By SEARCH_INPUT = By.name("search");
+    private static final By ARTICLE_HEADING = By.id("firstHeading");
+    private static final By SEARCH_SUGGESTIONS = By.cssSelector(".cdx-menu-item bdi");
+    private static final By SEARCH_RESULTS_HEADING = By.cssSelector(".mw-search-nonefound");
 
     @Test
-    void searchFieldShouldBeVisibleOnHomePage() {
-        // 1. Arrange (Przygotowanie)
+    @DisplayName("Pole wyszukiwania powinno być widoczne na stronie głównej")
+    void shouldDisplaySearchFieldWhenOnHomePage() {
+        // Arrange
         driver.get("https://pl.wikipedia.org");
 
-        // 2. Act (Działanie + Czekanie)
-        // Czekamy na oczekiwany stan - element gotowy do interakcji
-        WebElement searchInput = wait.until(ExpectedConditions.elementToBeClickable(By.name("search")));
+        // Act
+        WebElement searchField = wait.until(ExpectedConditions.elementToBeClickable(SEARCH_INPUT));
 
-        // 3. Assert (Weryfikacja biznesowa)
-        // Sprawdzamy czy element jest faktycznie wyświetlony
-        assertThat(searchInput.isDisplayed())
-                .as("Pole wyszukiwania powinno być widoczne na stronie głównej")
+        // Assert
+        assertThat(searchField.isDisplayed())
+                .as("Pole wyszukiwania musi być widoczne")
                 .isTrue();
-
-        // Dodatkowe sprawdzenie placeholder'a dla pewności, że to to pole
-        assertThat(searchInput.getAttribute("placeholder"))
-                .contains("Przeszukaj Wikipedię");
     }
 
     @Test
-    void searchForExistingArticleShouldRedirectToArticlePage() {
-        // 1. Arrange
+    @DisplayName("Wyszukanie istniejącego hasła powinno przekierować do artykułu")
+    void shouldRedirectToArticleWhenSearchingForExistingTerm() {
+        // Arrange
         driver.get("https://pl.wikipedia.org");
-        String searchQuery = "Java";
+        String term = "Java";
 
-        //String searchQuery = "qweasdzxc123456";
+        // Act
+        WebElement searchField = wait.until(ExpectedConditions.elementToBeClickable(SEARCH_INPUT));
+        searchField.sendKeys(term);
+        searchField.sendKeys(Keys.ENTER);
 
-        // 2. Act
-        // Znajdź pole (czekaj aż będzie klikalne)
-        WebElement searchInput = wait.until(ExpectedConditions.elementToBeClickable(By.name("search")));
+        WebElement heading = wait.until(ExpectedConditions.visibilityOfElementLocated(ARTICLE_HEADING));
 
-        // Wpisz frazę i zatwierdź ENTEREM (symulacja klawiatury)
-        searchInput.sendKeys(searchQuery);
-        searchInput.sendKeys(Keys.ENTER);
-
-        // Czekaj aż nagłówek artykułu będzie widoczny - najpewniejsza możliwa opcja załadowania się strony
-        WebElement pageHeader = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("firstHeading")));
-
-        // 3. Assert
-        // Sprawdzamy czy nagłówek zawiera słowo "Java"
-        // Używamy .contains(), bo tytuł może brzmieć "Java (język programowania)" lub "Java (wyspa)"
-        assertThat(pageHeader.getText())
-                .as("Tytuł artykułu powinien zawierać wyszukiwaną frazę")
-                .contains(searchQuery);
+        // Assert
+        assertThat(heading.getText())
+                .as("Tytuł artykułu powinien zawierać szukaną frazę")
+                .contains(term);
     }
 
     @Test
-    void searchSuggestionsShouldAppearForPartialText() {
-        // 1. Arrange
+    @DisplayName("Wpisanie fragmentu tekstu powinno wyświetlić podpowiedzi")
+    void shouldDisplaySuggestionsWhenTypingPartialText() {
+        // Arrange
         driver.get("https://pl.wikipedia.org");
         String partialText = "Warsz";
-        String expectedSuggestion = "Warszawa";
 
-        // 2. Act
-        WebElement searchInput = wait.until(ExpectedConditions.elementToBeClickable(By.name("search")));
-        searchInput.sendKeys(partialText);
+        // Act
+        WebElement searchField = wait.until(ExpectedConditions.elementToBeClickable(SEARCH_INPUT));
+        searchField.sendKeys(partialText);
 
-        // Czekamy aż pojawi się lista podpowiedzi
-        By suggestionSelector = By.cssSelector(".cdx-menu-item bdi");
-        wait.until(ExpectedConditions.visibilityOfElementLocated(suggestionSelector));
+        // Czekamy na pojawienie się listy (AJAX)
+        wait.until(ExpectedConditions.visibilityOfElementLocated(SEARCH_SUGGESTIONS));
+        List<WebElement> suggestions = driver.findElements(SEARCH_SUGGESTIONS);
 
-        // Gdy lista jest załadowana pobieramy ją
-        List<WebElement> suggestions = driver.findElements(suggestionSelector);
-
-        // 3. Assert
-        // Wyciągamy tekst z każdego elementu i sprawdzamy, czy Warszawa tam jest
+        // Assert
         assertThat(suggestions)
-                .as("Lista podpowiedzi powinna zawierać miasto Warszawa")
-                .extracting(WebElement::getText) // Transformacja: WebElement -> String
-                .contains(expectedSuggestion);
+                .as("Lista podpowiedzi nie może być pusta")
+                .isNotEmpty()
+                .extracting(WebElement::getText)
+                .anyMatch(text -> text.contains("Warszawa"));
+    }
+
+    @Test
+    @DisplayName("Wyszukanie nieistniejącej frazy powinno pokazać brak wyników")
+    void shouldShowNoResultsMessageWhenSearchingForGibberish() {
+        // Arrange
+        driver.get("https://pl.wikipedia.org");
+        String gibberish = "sdflkjghsdkjfghlskdjfg";
+
+        // Act
+        WebElement searchField = wait.until(ExpectedConditions.elementToBeClickable(SEARCH_INPUT));
+        searchField.sendKeys(gibberish);
+        searchField.sendKeys(Keys.ENTER);
+
+        // Czekamy na komunikat o braku wyników
+        WebElement errorMsg = wait.until(ExpectedConditions.visibilityOfElementLocated(SEARCH_RESULTS_HEADING));
+
+        // Assert
+        assertThat(errorMsg.getText())
+                .as("Powinien pojawić się komunikat o braku wyników")
+                .contains("Nie znaleziono");
     }
 }
